@@ -51,6 +51,11 @@ final class RecordingSession {
 
     var isRecording: Bool { queue.sync { state == .recording } }
 
+    /// The user dragged the self-view to another corner mid-recording; the next frame follows.
+    func setBubbleCorner(_ corner: BubbleCorner) {
+        queue.async { [weak self] in self?.compositor?.setCorner(corner) }
+    }
+
     // MARK: Lifecycle
 
     /// Builds the filter and starts the stream so audio formats and a first frame arrive before T0.

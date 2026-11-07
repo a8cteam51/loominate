@@ -256,6 +256,7 @@ final class AppState {
                 guard let self, self.prefs.bubbleCorner != corner else { return }
                 self.prefs.bubbleCorner = corner
                 self.prefs.save()
+                self.session?.setBubbleCorner(corner)   // so the recording moves with the preview
             }
             previewPanel = panel
         } else {

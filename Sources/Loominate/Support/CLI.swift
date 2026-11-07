@@ -12,7 +12,8 @@ enum CLI {
       --record [options]                  record headlessly; Ctrl-C or --seconds N stops it
           --seconds N  --display INDEX | --window SUBSTRING  --no-system-audio  --no-mic
           --mic SUBSTRING  --fake-camera  --fps N  --scale 1|2  --quality low|medium|high
-          --codec h264|hevc  --bubble-corner NAME  --bubble-size small|medium|large  --out PATH
+          --codec h264|hevc  --bubble-corner NAME  --bubble-size small|medium|large
+          --move-bubble SECONDS:CORNER (drag simulation)  --out PATH
       --probe <file>                      print a recording's tracks and sizes
 
     WordPress.com / VideoPress (run through the app bundle: Loominate.app/Contents/MacOS/Loominate)
@@ -151,6 +152,7 @@ enum HeadlessRecording {
         var micQuery: String?
         var fakeCamera = false
         var outPath: String?
+        var moveBubble: (after: Double, corner: BubbleCorner)?
         var prefs = Preferences()
 
         var i = 0
@@ -174,6 +176,12 @@ enum HeadlessRecording {
             case "--codec": prefs.codec = VideoCodecChoice(rawValue: value()) ?? .h264
             case "--bubble-corner": prefs.bubbleCorner = BubbleCorner(rawValue: value()) ?? .bottomLeft
             case "--bubble-size": prefs.bubbleSize = BubbleSize(rawValue: value()) ?? .medium
+            case "--move-bubble":   // SECONDS:CORNER, e.g. 2:topRight — simulates dragging the self-view mid-recording
+                let parts = value().split(separator: ":", maxSplits: 1).map(String.init)
+                guard parts.count == 2, let after = Double(parts[0]), let corner = BubbleCorner(rawValue: parts[1]) else {
+                    CLI.fail("--move-bubble wants SECONDS:CORNER, e.g. 2:topRight")
+                }
+                moveBubble = (after, corner)
             case "--out": outPath = value()
             default: CLI.fail("unknown option \(args[i])")
             }
@@ -231,7 +239,14 @@ enum HeadlessRecording {
             try await Task.sleep(for: .milliseconds(700))
             try await session.beginRecording(tempURL: urls.temp)
             print("recording for \(seconds) s …")
-            try await Task.sleep(for: .seconds(seconds))
+            if let moveBubble, moveBubble.after < seconds {
+                try await Task.sleep(for: .seconds(moveBubble.after))
+                session.setBubbleCorner(moveBubble.corner)
+                print("moved bubble to \(moveBubble.corner.rawValue) at \(moveBubble.after) s")
+                try await Task.sleep(for: .seconds(seconds - moveBubble.after))
+            } else {
+                try await Task.sleep(for: .seconds(seconds))
+            }
             let summary = try await session.stop()
             print("saved: \(summary.url.path)")
             print("appended: \(summary.appended)  dropped: \(summary.dropped)")

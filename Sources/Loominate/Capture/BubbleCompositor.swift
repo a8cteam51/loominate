@@ -1,31 +1,36 @@
 import CoreImage
 import CoreVideo
 
-/// Draws the circular camera bubble onto each screen frame before encoding.
+/// Draws the circular camera bubble onto each screen frame before encoding. The corner can change
+/// mid-recording (the user drags the self-view); `setCorner` is safe to call from any thread.
 final class BubbleCompositor {
+    /// Everything that depends on the corner, swapped as one unit so a frame never sees a half-moved bubble.
+    private struct Placement {
+        let origin: CGPoint   // bottom-left of the bubble's bounding square, Core Image coords
+        let ring: CIImage
+        let mask: CIImage
+    }
+
     let width: Int
     let height: Int
     private let diameter: CGFloat
     private let ringWidth: CGFloat = 3
-    private let origin: CGPoint   // bottom-left of the bubble's bounding square, Core Image coords
+    private let margin: CGFloat
+    private let insets: BubbleInsets
     private let context: CIContext
     private let pool: CVPixelBufferPool
     private let outputColorSpace = CGColorSpace(name: CGColorSpace.sRGB)
-    private let ring: CIImage
-    private let mask: CIImage
+    private let lock = NSLock()
+    private var placement: Placement
+    private(set) var corner: BubbleCorner
 
     init(width: Int, height: Int, size: BubbleSize, corner: BubbleCorner, insets: BubbleInsets = .zero) throws {
         self.width = width
         self.height = height
+        self.insets = insets
+        self.corner = corner
         diameter = (CGFloat(height) * size.fraction).rounded(.down)
-        let margin = (diameter * BubbleInsets.marginFraction).rounded()
-        let w = CGFloat(width), h = CGFloat(height)
-        switch corner {
-        case .bottomLeft: origin = CGPoint(x: margin + insets.left, y: margin + insets.bottom)
-        case .bottomRight: origin = CGPoint(x: w - diameter - margin - insets.right, y: margin + insets.bottom)
-        case .topLeft: origin = CGPoint(x: margin + insets.left, y: h - diameter - margin - insets.top)
-        case .topRight: origin = CGPoint(x: w - diameter - margin - insets.right, y: h - diameter - margin - insets.top)
-        }
+        margin = (diameter * BubbleInsets.marginFraction).rounded()
         context = CIContext(options: [.cacheIntermediates: false])
 
         let attributes: [String: Any] = [
@@ -39,11 +44,35 @@ final class BubbleCompositor {
         let status = CVPixelBufferPoolCreate(nil, nil, attributes as CFDictionary, &pool)
         guard status == kCVReturnSuccess, let pool else { throw RecordingError.compositorUnavailable }
         self.pool = pool
+        placement = Self.makePlacement(corner: corner, width: width, height: height, diameter: diameter,
+                                       margin: margin, insets: insets, ringWidth: ringWidth)
+    }
 
+    /// Moves the bubble for every frame composed from now on.
+    func setCorner(_ corner: BubbleCorner) {
+        let next = Self.makePlacement(corner: corner, width: width, height: height, diameter: diameter,
+                                      margin: margin, insets: insets, ringWidth: ringWidth)
+        lock.lock()
+        self.corner = corner
+        placement = next
+        lock.unlock()
+    }
+
+    private static func makePlacement(corner: BubbleCorner, width: Int, height: Int, diameter: CGFloat,
+                                      margin: CGFloat, insets: BubbleInsets, ringWidth: CGFloat) -> Placement {
+        let w = CGFloat(width), h = CGFloat(height)
+        let origin: CGPoint
+        switch corner {
+        case .bottomLeft: origin = CGPoint(x: margin + insets.left, y: margin + insets.bottom)
+        case .bottomRight: origin = CGPoint(x: w - diameter - margin - insets.right, y: margin + insets.bottom)
+        case .topLeft: origin = CGPoint(x: margin + insets.left, y: h - diameter - margin - insets.top)
+        case .topRight: origin = CGPoint(x: w - diameter - margin - insets.right, y: h - diameter - margin - insets.top)
+        }
         let center = CGPoint(x: origin.x + diameter / 2, y: origin.y + diameter / 2)
         let radius = diameter / 2
-        ring = Self.disc(center: center, radius: radius + ringWidth, color: CIColor(red: 1, green: 1, blue: 1, alpha: 0.95))
-        mask = Self.disc(center: center, radius: radius, color: CIColor.white)
+        return Placement(origin: origin,
+                         ring: disc(center: center, radius: radius + ringWidth, color: CIColor(red: 1, green: 1, blue: 1, alpha: 0.95)),
+                         mask: disc(center: center, radius: radius, color: CIColor.white))
     }
 
     /// Returns a new BGRA buffer with the bubble drawn, or the screen frame alone when no camera frame exists.
@@ -57,14 +86,18 @@ final class BubbleCompositor {
                                                             y: CGFloat(height) / image.extent.height))
         }
         if let camera {
-            let bubble = bubbleImage(from: camera)
-            image = bubble.composited(over: ring).composited(over: image)
+            lock.lock()
+            let current = placement
+            lock.unlock()
+            let bubble = bubbleImage(from: camera, at: current)
+            image = bubble.composited(over: current.ring).composited(over: image)
         }
         context.render(image, to: output, bounds: CGRect(x: 0, y: 0, width: width, height: height), colorSpace: outputColorSpace)
         return output
     }
 
-    private func bubbleImage(from camera: CVPixelBuffer) -> CIImage {
+    private func bubbleImage(from camera: CVPixelBuffer, at placement: Placement) -> CIImage {
+        let origin = placement.origin
         var cam = CIImage(cvPixelBuffer: camera)
         // Mirror like a selfie preview.
         cam = cam.transformed(by: CGAffineTransform(scaleX: -1, y: 1).translatedBy(x: -cam.extent.width, y: 0))
@@ -79,7 +112,7 @@ final class BubbleCompositor {
         // Keep only the disc.
         let masked = cam.applyingFilter("CIBlendWithMask", parameters: [
             kCIInputBackgroundImageKey: CIImage.empty(),
-            kCIInputMaskImageKey: mask,
+            kCIInputMaskImageKey: placement.mask,
         ])
         return masked.cropped(to: CGRect(x: origin.x, y: origin.y, width: diameter, height: diameter))
     }

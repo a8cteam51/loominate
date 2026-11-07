@@ -101,6 +101,7 @@ $R --devices                                   # cameras, mics, permission state
 $R --probe ~/Movies/Loominate/some.mp4         # tracks, codecs, bitrate
 $R --record --seconds 10 --out /tmp/test.mp4   # main display, system audio + default mic
 $R --record --seconds 5 --window "Safari" --fake-camera --bubble-corner topRight
+$R --record --seconds 4 --fake-camera --move-bubble 2:topRight   # simulates dragging the bubble mid-recording
 $R --login                                     # browser sign-in; --no-browser prints the URL
 $R --whoami
 $R --sites                                     # every site you belong to and which can take uploads
