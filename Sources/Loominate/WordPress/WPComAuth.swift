@@ -32,18 +32,15 @@ enum WPComAuth {
         }
     }
 
-    static func authorizeURL(state: String, globalScope: Bool) -> URL {
-        var items: [(String, String)] = [
+    /// Account-wide access, so the app can list the user's sites and upload to the chosen one.
+    static func authorizeURL(state: String) -> URL {
+        let items: [(String, String)] = [
             ("client_id", WPComConfig.clientID),
             ("redirect_uri", WPComConfig.redirectURI),
             ("response_type", "code"),
+            ("scope", "global"),
             ("state", state),
         ]
-        if globalScope {
-            items.append(("scope", "global"))
-        } else {
-            items.append(("blog", String(WPComConfig.blogID)))
-        }
         var components = URLComponents(url: WPComConfig.authorizeURL, resolvingAgainstBaseURL: false)!
         components.percentEncodedQuery = FormEncoding.encode(items)
         return components.url!
@@ -64,15 +61,14 @@ enum WPComAuth {
     }
 
     /// Runs the whole flow: listener, browser, callback, token exchange, account lookup, storage.
-    static func signIn(globalScope: Bool = false,
-                       openBrowser: Bool = true,
+    static func signIn(openBrowser: Bool = true,
                        timeout: Duration = .seconds(300),
                        status: @escaping (String) -> Void = { _ in }) async throws -> SignIn {
         guard let secret = WPComConfig.clientSecret else { throw WPComError.missingClientSecret }
         let state = randomState()
         let server = LoopbackServer(port: WPComConfig.callbackPort)
         try server.start()
-        let url = authorizeURL(state: state, globalScope: globalScope)
+        let url = authorizeURL(state: state)
         status("Authorize Loominate in your browser: \(url.absoluteString)")
         if openBrowser {
             await MainActor.run { _ = NSWorkspace.shared.open(url) }
@@ -106,14 +102,12 @@ enum WPComAuth {
             Log.note("account lookup failed after sign-in: \(error.localizedDescription)")
         }
         try KeychainStore.saveToken(token.accessToken)
-        let account = WPComAccount(blogID: token.blogID ?? WPComConfig.blogID,
-                                   blogURL: token.blogURL ?? WPComConfig.siteURL.absoluteString,
-                                   scope: token.scope ?? (globalScope ? "global" : "auth"),
+        let account = WPComAccount(scope: token.scope ?? "global",
                                    userLogin: login,
                                    displayName: display,
                                    signedInAt: Date())
         account.save()
-        Log.note("signed in to WordPress.com as \(login.isEmpty ? "(unknown)" : login) scope=\(account.scope) blog=\(account.blogID)")
+        Log.note("signed in to WordPress.com as \(login.isEmpty ? "(unknown)" : login) scope=\(account.scope)")
         return SignIn(account: account, accessToken: token.accessToken)
     }
 

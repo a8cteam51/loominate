@@ -32,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         ExceptionLog.install()
+        AppDelegate.state?.updates.start()
         if let seconds = AutoRecord.secondsFromArguments(), let state = AppDelegate.state {
             AutoRecord.run(seconds: seconds, state: state)
         }

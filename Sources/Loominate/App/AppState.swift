@@ -26,6 +26,7 @@ final class AppState {
 
     var prefs: Preferences
     let devices = DeviceCatalog()
+    let updates = UpdateController()
 
     var sourceKind: SourceKind = .display
     var selectedDisplayID: CGDirectDisplayID?
@@ -46,6 +47,12 @@ final class AppState {
     private(set) var account: WPComAccount?
     private(set) var isSigningIn = false
     var signInError: String?
+    private(set) var sites: [WPComSite] = []
+    private(set) var isLoadingSites = false
+    var sitesError: String?
+    /// Text typed into the site picker's filter box; people at Automattic belong to hundreds of P2s.
+    var siteFilter = ""
+    @ObservationIgnored private var sitesLoadedThisLaunch = false
     var uploadTitle = ""
     private(set) var uploadProgress: Double = 0
     private(set) var uploadBytes: (sent: Int64, total: Int64) = (0, 0)
@@ -74,6 +81,9 @@ final class AppState {
         prefs = loaded
         account = WPComAccount.load()
         refreshPermissions()
+        updates.isAppBusy = { [weak self] in self?.isBusy ?? false }
+        updates.automaticChecksEnabled = { [weak self] in self?.prefs.checkForUpdatesAutomatically ?? true }
+        Notifier.openUpdatesHandler = { [weak self] in Task { @MainActor in self?.openSettings() } }
     }
 
     // MARK: Derived state
@@ -93,7 +103,17 @@ final class AppState {
     }
 
     var hasClientSecret: Bool { WPComConfig.hasClientSecret }
-    var canUpload: Bool { account != nil && hasClientSecret }
+    /// A token scoped to one site (from an earlier build) cannot list sites; ask once for a fresh sign-in.
+    var needsReSignIn: Bool { account.map { !$0.hasGlobalScope } ?? false }
+    var hasSite: Bool { account?.siteID != nil }
+    var canUpload: Bool { account != nil && !needsReSignIn && hasSite && hasClientSecret }
+    var eligibleSites: [WPComSite] { sites.filter(\.isEligible) }
+    var filteredEligibleSites: [WPComSite] {
+        let needle = siteFilter.trimmingCharacters(in: .whitespaces)
+        guard !needle.isEmpty else { return eligibleSites }
+        return eligibleSites.filter { $0.label.localizedCaseInsensitiveContains(needle) || String($0.id) == needle }
+    }
+    var selectedSite: WPComSite? { sites.first { $0.id == account?.siteID } }
     var uploadPercentText: String { "\(Int((uploadProgress * 100).rounded()))%" }
 
     var selectedSource: CaptureSource? {
@@ -126,7 +146,12 @@ final class AppState {
     func panelDidAppear() async {
         refreshPermissions()
         devices.refresh()
+        if let notice = updates.postInstallNotice {
+            warning = notice
+            updates.postInstallNotice = nil
+        }
         await refreshContent()
+        await loadSitesIfNeeded()
     }
 
     func refreshContent() async {
@@ -463,6 +488,7 @@ final class AppState {
                 let result = try await WPComAuth.signIn()
                 self?.account = result.account
                 self?.cachedToken = result.accessToken
+                await self?.loadSites()
             } catch WPComError.cancelled {
                 // user cancelled
             } catch {
@@ -481,6 +507,56 @@ final class AppState {
         WPComAuth.signOut()
         account = nil
         cachedToken = nil
+        sites = []
+        sitesError = nil
+    }
+
+    // MARK: Sites
+
+    /// Loads the site list once per launch when signed in; Settings and the panel call this.
+    func loadSitesIfNeeded() async {
+        guard account != nil, !needsReSignIn, !sitesLoadedThisLaunch, !isLoadingSites else { return }
+        await loadSites()
+    }
+
+    func loadSites() async {
+        guard account != nil, !needsReSignIn, !isLoadingSites else { return }
+        isLoadingSites = true
+        defer { isLoadingSites = false }
+        do {
+            let api = WPComAPI(token: try accessToken(), session: uploadSession)
+            let fetched = try await api.sites()
+            sites = fetched.sorted { $0.label.localizedCaseInsensitiveCompare($1.label) == .orderedAscending }
+            sitesError = nil
+            sitesLoadedThisLaunch = true
+            let eligible = eligibleSites
+            if let current = account?.siteID, !eligible.contains(where: { $0.id == current }) {
+                selectSite(nil)   // the chosen site is gone or lost VideoPress
+            }
+            if account?.siteID == nil, eligible.count == 1 {
+                selectSite(eligible[0])
+            }
+            Log.note("sites loaded: \(sites.count) total, \(eligible.count) with VideoPress; selected=\(account?.siteID.map(String.init) ?? "none")")
+        } catch WPComError.authExpired {
+            signOut()
+            signInError = WPComError.authExpired.localizedDescription
+        } catch {
+            sitesError = error.localizedDescription
+            Log.note("sites load failed: \(error.localizedDescription)")
+        }
+    }
+
+    func selectSite(_ site: WPComSite?) {
+        guard var account else { return }
+        account.select(site)
+        account.save()
+        self.account = account
+    }
+
+    /// Opens the Settings window and brings the app forward (used from panels outside the SwiftUI scene).
+    func openSettings() {
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
     }
 
     /// The access token, read from the Keychain on first use and then kept in memory.
@@ -507,8 +583,11 @@ final class AppState {
 
     func startUpload(file: URL) {
         guard !isUploading else { return }
-        guard canUpload else {
-            phase = .uploadFailed(file, WPComError.notSignedIn.localizedDescription)
+        guard canUpload, let blogID = account?.siteID else {
+            let reason = (account == nil || needsReSignIn)
+                ? WPComError.notSignedIn.localizedDescription
+                : "Choose a site to upload to in Settings."
+            phase = .uploadFailed(file, reason)
             return
         }
         let size = (try? FileManager.default.attributesOfItem(atPath: file.path)[.size] as? NSNumber)?.int64Value ?? 0
@@ -523,7 +602,7 @@ final class AppState {
                 let token = try self.accessToken()
                 let api = WPComAPI(token: token, session: self.uploadSession)
                 let uploader = VideoPressUploader(api: api, session: self.uploadSession)
-                var result = try await uploader.upload(file: file, title: initialTitle) { sent, total in
+                var result = try await uploader.upload(file: file, title: initialTitle, blogID: blogID) { sent, total in
                     Task { @MainActor in
                         self.uploadBytes = (sent, total)
                         self.uploadProgress = total > 0 ? Double(sent) / Double(total) : 0
@@ -532,7 +611,7 @@ final class AppState {
                 // The title may have been edited while the upload ran.
                 let finalTitle = self.effectiveTitle(for: file)
                 if finalTitle != initialTitle {
-                    try? await api.setMediaTitle(blogID: WPComConfig.blogID, mediaID: result.mediaID, title: finalTitle)
+                    try? await api.setMediaTitle(blogID: blogID, mediaID: result.mediaID, title: finalTitle)
                     result.title = finalTitle
                 }
                 self.finishUpload(file: file, result: result)
@@ -577,12 +656,13 @@ final class AppState {
 
     /// Re-applies an edited title to the uploaded video.
     func saveUploadedTitle() async {
-        guard case .uploaded(let file, var result) = phase, let mediaID = lastUploadMediaID else { return }
+        guard case .uploaded(let file, var result) = phase, let mediaID = lastUploadMediaID,
+              let blogID = account?.siteID else { return }
         let title = effectiveTitle(for: file)
         guard title != result.title else { return }
         do {
             let api = WPComAPI(token: try accessToken(), session: uploadSession)
-            try await api.setMediaTitle(blogID: WPComConfig.blogID, mediaID: mediaID, title: title)
+            try await api.setMediaTitle(blogID: blogID, mediaID: mediaID, title: title)
             result.title = title
             phase = .uploaded(file, result)
         } catch {

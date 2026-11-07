@@ -12,11 +12,11 @@ struct VideoPressUploader {
     let api: WPComAPI
     let session: URLSession
 
-    func upload(file: URL, title: String, progress: @escaping (Int64, Int64) -> Void) async throws -> UploadResult {
+    func upload(file: URL, title: String, blogID: Int, progress: @escaping (Int64, Int64) -> Void) async throws -> UploadResult {
         var refreshedOnce = false
         while true {
-            let jwt = try await api.videoPressUploadToken(blogID: WPComConfig.blogID)
-            let endpoint = jwt.endpoint(defaultBlogID: WPComConfig.blogID)
+            let jwt = try await api.videoPressUploadToken(blogID: blogID)
+            let endpoint = jwt.endpoint(defaultBlogID: blogID)
             let uploader = TusUploader(session: session)
             let filename = Self.sanitizedFilename(title) + ".mp4"
             do {
@@ -25,7 +25,7 @@ struct VideoPressUploader {
                                                            progress: progress)
                 Log.note("uploaded \(file.lastPathComponent) → guid \(completion.guid) media \(completion.mediaID)")
                 do {
-                    try await api.setMediaTitle(blogID: WPComConfig.blogID, mediaID: completion.mediaID, title: title)
+                    try await api.setMediaTitle(blogID: blogID, mediaID: completion.mediaID, title: title)
                 } catch {
                     Log.note("title update failed (video may still be processing): \(error.localizedDescription)")
                 }

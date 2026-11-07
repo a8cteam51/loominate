@@ -52,9 +52,11 @@ private struct ResultHUDView: View {
                         Button("Upload & Copy Link") { state.uploadLastRecording() }
                             .buttonStyle(.borderedProminent)
                             .keyboardShortcut(.defaultAction)
-                    } else if state.hasClientSecret {
+                    } else if state.hasClientSecret && (state.account == nil || state.needsReSignIn) {
                         Button(state.isSigningIn ? "Waiting…" : "Sign In to Upload") { state.signIn() }
                             .disabled(state.isSigningIn)
+                    } else if state.hasClientSecret {
+                        Button("Choose Site…") { state.openSettings() }
                     }
                 }
                 titleRow(placeholder: url.deletingPathExtension().lastPathComponent)

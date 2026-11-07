@@ -91,6 +91,9 @@ struct Preferences: Codable, Equatable {
     var notifyWhenUploaded: Bool = true
     var deleteLocalAfterUpload: Bool = false
 
+    // Updates
+    var checkForUpdatesAutomatically: Bool = true
+
     static let defaultOutputFolder: URL = {
         let movies = FileManager.default.urls(for: .moviesDirectory, in: .userDomainMask).first
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Movies")
@@ -105,6 +108,7 @@ struct Preferences: Codable, Equatable {
         case cameraDeviceID, microphoneDeviceID
         case autoUpload = "autoUploadRecordings"
         case titlePrefix, copyLinkAfterUpload, notifyWhenUploaded, deleteLocalAfterUpload
+        case checkForUpdatesAutomatically
     }
 
     init() {}
@@ -133,6 +137,7 @@ struct Preferences: Codable, Equatable {
         copyLinkAfterUpload = try c.decodeIfPresent(Bool.self, forKey: .copyLinkAfterUpload) ?? d.copyLinkAfterUpload
         notifyWhenUploaded = try c.decodeIfPresent(Bool.self, forKey: .notifyWhenUploaded) ?? d.notifyWhenUploaded
         deleteLocalAfterUpload = try c.decodeIfPresent(Bool.self, forKey: .deleteLocalAfterUpload) ?? d.deleteLocalAfterUpload
+        checkForUpdatesAutomatically = try c.decodeIfPresent(Bool.self, forKey: .checkForUpdatesAutomatically) ?? d.checkForUpdatesAutomatically
     }
 
     private static let defaultsKey = "preferences.v1"

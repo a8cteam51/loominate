@@ -55,6 +55,20 @@ struct WPComAPI {
         return try Self.decode(Me.self, from: data)
     }
 
+    private struct SitesResponse: Decodable {
+        let sites: [WPComSite]
+    }
+
+    /// Every site the user belongs to, with the fields needed to judge VideoPress eligibility.
+    func sites() async throws -> [WPComSite] {
+        let data = try await send(path: "rest/v1.1/me/sites", method: "GET", form: nil, query: [
+            ("fields", "ID,name,URL,jetpack,jetpack_modules,is_private,capabilities,options"),
+            ("options", "videopress_enabled,is_wpcom_atomic"),
+            ("site_visibility", "all"),
+        ])
+        return try Self.decode(SitesResponse.self, from: data).sites
+    }
+
     func videoPressUploadToken(blogID: Int) async throws -> UploadToken {
         let data = try await send(path: "wpcom/v2/sites/\(blogID)/media/videopress-upload-jwt", method: "POST", form: [])
         return try Self.decode(UploadToken.self, from: data)
@@ -66,8 +80,10 @@ struct WPComAPI {
 
     // MARK: Plumbing
 
-    private func send(path: String, method: String, form: [(String, String)]?) async throws -> Data {
-        var request = URLRequest(url: WPComConfig.apiBase.appending(path: path))
+    private func send(path: String, method: String, form: [(String, String)]?, query: [(String, String)] = []) async throws -> Data {
+        var components = URLComponents(url: WPComConfig.apiBase.appending(path: path), resolvingAgainstBaseURL: false)!
+        if !query.isEmpty { components.percentEncodedQuery = FormEncoding.encode(query) }
+        var request = URLRequest(url: components.url!)
         request.httpMethod = method
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")

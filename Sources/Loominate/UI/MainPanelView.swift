@@ -6,6 +6,9 @@ struct MainPanelView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
+            if state.updates.shouldOffer && !state.isBusy {
+                updateRow
+            }
             if state.screenPermission {
                 sourceSection
                 Divider()
@@ -47,6 +50,31 @@ struct MainPanelView: View {
             .help("Quit Loominate (⌘Q)")
             .disabled(state.isRecording || state.isUploading)
         }
+    }
+
+    private var updateRow: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "arrow.down.circle.fill").foregroundStyle(.tint)
+            switch state.updates.phase {
+            case .downloading(let fraction):
+                Text("Downloading \(Int((fraction * 100).rounded()))%…")
+                Spacer()
+            case .verifying, .installing:
+                Text("Installing…")
+                Spacer()
+            case .failed, .blocked:
+                Text("The update didn't install.")
+                Spacer()
+                Button("Details") { state.openSettings() }.buttonStyle(.link)
+            default:
+                Text("Loominate \(state.updates.availableUpdate?.version ?? "") is available")
+                Spacer()
+                Button("Update") { state.updates.install() }.buttonStyle(.link)
+            }
+        }
+        .font(.caption)
+        .padding(8)
+        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
     }
 
     private var screenPermissionSection: some View {
@@ -238,9 +266,8 @@ struct MainPanelView: View {
                 HStack {
                     if state.canUpload {
                         Button("Upload") { state.uploadLastRecording() }
-                    } else if state.hasClientSecret {
-                        Button(state.isSigningIn ? "Waiting for browser…" : "Sign In to Upload") { state.signIn() }
-                            .disabled(state.isSigningIn)
+                    } else {
+                        uploadBlockerButton(label: "Sign In to Upload")
                     }
                     Button("Reveal in Finder") { state.revealLastRecording() }
                     Button("Discard") { state.discardLastRecording() }
@@ -300,9 +327,8 @@ struct MainPanelView: View {
                 HStack {
                     if state.canUpload {
                         Button("Retry Upload") { state.uploadLastRecording() }
-                    } else if state.hasClientSecret {
-                        Button(state.isSigningIn ? "Waiting for browser…" : "Sign In") { state.signIn() }
-                            .disabled(state.isSigningIn)
+                    } else {
+                        uploadBlockerButton(label: "Sign In")
                     }
                     Button("Reveal File") { state.revealLastRecording() }
                     Spacer()
@@ -324,14 +350,25 @@ struct MainPanelView: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
                 Image(systemName: "person.crop.circle.badge.exclamationmark")
-                if state.hasClientSecret {
+                if !state.hasClientSecret {
+                    Text("This build cannot sign in to WordPress.com (no client secret). Recordings stay local.")
+                } else if state.account == nil {
                     Text("Sign in to WordPress.com to get a share link after each recording.")
                     Spacer()
                     Button(state.isSigningIn ? "Waiting…" : "Sign In") { state.signIn() }
                         .buttonStyle(.link)
                         .disabled(state.isSigningIn)
+                } else if state.needsReSignIn {
+                    Text("Sign in again so Loominate can list your sites.")
+                    Spacer()
+                    Button(state.isSigningIn ? "Waiting…" : "Sign In") { state.signIn() }
+                        .buttonStyle(.link)
+                        .disabled(state.isSigningIn)
                 } else {
-                    Text("This build cannot sign in to WordPress.com (no client secret). Recordings stay local.")
+                    Text(state.isLoadingSites ? "Loading your sites…" : "Choose which site uploads go to.")
+                    Spacer()
+                    Button("Choose Site") { state.openSettings() }
+                        .buttonStyle(.link)
                 }
             }
             if state.isSigningIn {
@@ -347,6 +384,19 @@ struct MainPanelView: View {
         .font(.caption)
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// Whatever stands between the user and an upload: sign-in, a fresh sign-in, or picking a site.
+    @ViewBuilder
+    private func uploadBlockerButton(label: String) -> some View {
+        if !state.hasClientSecret {
+            EmptyView()
+        } else if state.account == nil || state.needsReSignIn {
+            Button(state.isSigningIn ? "Waiting for browser…" : label) { state.signIn() }
+                .disabled(state.isSigningIn)
+        } else {
+            Button("Choose Site…") { state.openSettings() }
+        }
     }
 
     private func titleField(placeholder: String) -> some View {

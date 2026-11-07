@@ -1,13 +1,9 @@
 import Foundation
 
-/// Where recordings go and how the app identifies itself to WordPress.com.
+/// How the app identifies itself to WordPress.com. The upload target is chosen per account.
 enum WPComConfig {
-    /// WordPress.com OAuth app "Loominate" (owner a8cuser + natecallen).
+    /// WordPress.com OAuth app "Loominate". Builders using their own app change this and the secret.
     static let clientID = "152440"
-    /// specialprojects.automattic.com (a8cspcooltools.wordpress.com)
-    static let blogID = 236976534
-    static let siteURL = URL(string: "https://specialprojects.automattic.com")!
-    static let siteName = "Automattic Special Projects"
 
     static let apiBase = URL(string: "https://public-api.wordpress.com")!
     static let authorizeURL = URL(string: "https://public-api.wordpress.com/oauth2/authorize")!

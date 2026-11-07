@@ -6,9 +6,16 @@ import UserNotifications
 final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     static let shared = Notifier()
 
+    enum Action: String {
+        case openUpdates
+    }
+
+    /// Set by the app; runs on the main thread when the user taps a notification carrying `.openUpdates`.
+    nonisolated(unsafe) static var openUpdatesHandler: (() -> Void)?
+
     private var available: Bool { WPComConfig.isRunningFromBundle }
 
-    func notify(title: String, body: String, url: URL?) {
+    func notify(title: String, body: String, url: URL? = nil, action: Action? = nil) {
         guard available else { return }
         let center = UNUserNotificationCenter.current()
         center.delegate = self
@@ -19,7 +26,8 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
             content.title = title
             content.body = body
             content.sound = .default
-            if let url { content.userInfo = ["url": url.absoluteString] }
+            if let url { content.userInfo["url"] = url.absoluteString }
+            if let action { content.userInfo["action"] = action.rawValue }
             center.add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)) { error in
                 if let error { Log.note("notification failed: \(error.localizedDescription)") }
             }
@@ -35,8 +43,16 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 didReceive response: UNNotificationResponse,
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
-        if let string = response.notification.request.content.userInfo["url"] as? String, let url = URL(string: string) {
+        let userInfo = response.notification.request.content.userInfo
+        if let string = userInfo["url"] as? String, let url = URL(string: string) {
             NSWorkspace.shared.open(url)
+        }
+        if let raw = userInfo["action"] as? String, let action = Action(rawValue: raw) {
+            DispatchQueue.main.async {
+                switch action {
+                case .openUpdates: Notifier.openUpdatesHandler?()
+                }
+            }
         }
         completionHandler()
     }
