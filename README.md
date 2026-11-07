@@ -30,15 +30,31 @@ site already lives: VideoPress.
 - Keeps files small. A five-minute walkthrough is usually tens of megabytes.
 - Uploads to VideoPress and copies the link, so the video plays in any browser with nothing to install.
 - Leaves every recording on your Mac until you decide to upload it. Botched take? Discard it and go again.
-- Talks to nothing except your Mac and WordPress.com. No third-party services and no analytics.
+- Talks to WordPress.com to upload, and to GitHub once a day to look for a new version. No
+  analytics, nothing else.
 
 ## Install
 
-1. Download the latest `Loominate.dmg` from [Releases](../../releases).
-2. Drag Loominate into Applications and open it.
-3. Allow Screen Recording when macOS asks, reopen the app, and sign in with your WordPress.com account.
+Paste this into Terminal and press Return:
 
-You'll need macOS 26 or later and a WordPress site with VideoPress.
+```sh
+curl -fsSL https://raw.githubusercontent.com/a8cteam51/loominate/trunk/install.sh | sh
+```
+
+It fetches the latest release, checks it, puts Loominate in your Applications folder and opens it.
+Run the same line again later to upgrade, or let the app do it: Loominate checks for new versions
+once a day and installs them with one click.
+
+If you'd rather download something, grab `Loominate-<version>.dmg` from
+[Releases](../../releases) and drag Loominate into Applications. Loominate isn't notarized with
+Apple yet, so macOS refuses to open a copy that arrived through a browser until you allow it under
+System Settings → Privacy & Security ("Open Anyway"). The Terminal line above skips that dance.
+
+Either way, allow Screen Recording when macOS asks, reopen the app, and sign in with your
+WordPress.com account. You'll need a Mac with Apple silicon running macOS 26 or later, and a
+WordPress site with VideoPress: a WordPress.com site on a plan that includes it, or a
+Jetpack-connected site with the VideoPress plan. After you sign in, Loominate lists the sites
+that qualify.
 
 ## Using it
 
@@ -50,17 +66,24 @@ When you stop, a small panel asks what to do with the recording: upload it and c
 the file, or discard it. You can type a title while the upload runs. There's also a title prefix in
 Settings, which is handy when a whole team shares one site.
 
+If you belong to more than one site with VideoPress, choose where uploads go under Settings →
+WordPress.com account. Share links play for anyone who has them, unless the site restricts its
+VideoPress videos to members.
+
 ## Privacy
 
 Loominate asks macOS for permission to see your screen and devices, and asks you once, in your
-browser, to let it upload to WordPress.com. The sign-in is stored in the macOS Keychain. Nothing
-leaves your Mac until you press Upload, and nothing about how you use the app is collected.
+browser, to let it upload to WordPress.com. The sign-in is stored in the macOS Keychain. No
+recording leaves your Mac until you press Upload, and nothing about how you use the app is
+collected. Once a day the app downloads a small signed file from GitHub to find out whether a
+newer version exists; you can turn that off under Settings → Updates.
 
 ## For developers
 
 Loominate is written in Swift with Apple frameworks only; there are no third-party dependencies.
-[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) covers building it, the headless test modes, and
-shipping a release.
+[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) covers building it, the headless test modes, how
+updates are signed, and shipping a release. [CONTRIBUTING.md](CONTRIBUTING.md) has the short
+version of how to send changes.
 
 ## License
 
