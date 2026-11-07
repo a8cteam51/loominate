@@ -38,5 +38,10 @@
     <string>Loominate shows your camera as a bubble in the recording.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Loominate records your voice while you record your screen.</string>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsLocalNetworking</key>
+        <true/>
+    </dict>
 </dict>
 </plist>

@@ -1,8 +1,14 @@
 #!/bin/bash
 # Builds the Loominate executable with SwiftPM and assembles a signed .app bundle.
 # Usage: Scripts/bundle.sh [debug|release]
-# Set SIGN_IDENTITY to a code-signing certificate name (see README) for stable
-# permission grants across rebuilds. Defaults to ad-hoc signing ("-").
+# Environment:
+#   SIGN_IDENTITY    code-signing certificate name; defaults to the dev cert from
+#                    Scripts/make-dev-cert.sh if present, else ad-hoc ("-")
+#   REQUIRE_SIGNING  when set, fail instead of falling back to ad-hoc (releases must be
+#                    signed with a stable identity or the self-updater will refuse them)
+#   APP_VERSION      overrides CFBundleShortVersionString in the built bundle
+#   BUILD_NUMBER     overrides CFBundleVersion in the built bundle (publish.sh passes the
+#                    commit count, so build numbers only go up)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -24,6 +30,10 @@ if [[ -z "$IDENTITY" ]]; then
     done
 fi
 if [[ -z "$IDENTITY" ]]; then
+    if [[ -n "${REQUIRE_SIGNING:-}" ]]; then
+        echo "error: REQUIRE_SIGNING is set but no code-signing certificate was found. Run Scripts/make-dev-cert.sh or set SIGN_IDENTITY." >&2
+        exit 1
+    fi
     IDENTITY="-"
     echo "warning: no code-signing certificate found; signing ad-hoc. Permissions will reset on every rebuild. Run Scripts/make-dev-cert.sh once." >&2
 fi
@@ -62,11 +72,21 @@ else
     echo "warning: no WordPress.com client secret found (set WPCOM_CLIENT_SECRET or create .secrets/wpcom.env); sign-in is disabled in this build" >&2
 fi
 
+# Version and build number, written into the built bundle only (Scripts/Info.plist keeps 1).
+PLIST="$APP/Contents/Info.plist"
+if [[ -n "${APP_VERSION:-}" ]]; then
+    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $APP_VERSION" "$PLIST"
+fi
+if [[ -n "${BUILD_NUMBER:-}" ]]; then
+    /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$PLIST"
+fi
+VERSION_LABEL="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST") ($(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST"))"
+
 CODESIGN_ARGS=(--force --sign "$IDENTITY" --identifier "$BUNDLE_ID")
 if [[ "$IDENTITY" == Developer\ ID* ]]; then
     # Distribution builds: hardened runtime and entitlements are required for notarization.
     CODESIGN_ARGS+=(--options runtime --timestamp --entitlements "$ROOT/Scripts/Loominate.entitlements")
 fi
 codesign "${CODESIGN_ARGS[@]}" "$APP"
-echo "Built $APP ($CONFIG), signed with: $IDENTITY"
+echo "Built $APP ($CONFIG) $VERSION_LABEL, signed with: $IDENTITY"
 codesign -dv "$APP" 2>&1 | grep -E '^(Identifier|Authority|Signature)=' || true
