@@ -25,7 +25,7 @@ site already lives: VideoPress.
 
 - Records a whole display or just one window, at 1x or full Retina.
 - Captures your microphone and whatever is playing on your Mac, headphones included, mixed into
-  one track. The built-in recorder can't do that, and it's the main reason Loominate exists.
+  one track. The default screen recorder on a Mac can't do that, and it's the main reason Loominate exists.
 - Adds an optional camera bubble. Drag it to a corner and that's where it lands in the video.
 - Keeps files small. A five-minute walkthrough is usually tens of megabytes.
 - Uploads to VideoPress and copies the link, so the video plays in any browser with nothing to install.
