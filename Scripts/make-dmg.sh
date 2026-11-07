@@ -27,7 +27,9 @@ hdiutil create -quiet -volname "$VOLNAME" -srcfolder "$STAGE/content" -ov -forma
 hdiutil attach -quiet -readwrite -noverify -noautoopen "$RW"
 sleep 1
 
-# Window: 660x400 points, icon view, background, icons at left and right of the arrow.
+# Window: a 660x400-point content area (the background's size) plus the title bar, icon view, icons at
+# left and right of the arrow and high enough that their labels clear a path bar if the viewer shows one.
+# The two hidden folders get parked top-right so Finders set to show hidden files don't put them on the text.
 osascript <<APPLESCRIPT
 tell application "Finder"
     tell disk "$VOLNAME"
@@ -35,14 +37,23 @@ tell application "Finder"
         set current view of container window to icon view
         set toolbar visible of container window to false
         set statusbar visible of container window to false
-        set the bounds of container window to {200, 160, 860, 560}
+        try
+            set pathbar visible of container window to false
+        end try
+        set the bounds of container window to {200, 160, 860, 588}
         set theViewOptions to the icon view options of container window
         set arrangement of theViewOptions to not arranged
         set icon size of theViewOptions to 128
         set text size of theViewOptions to 13
         set background picture of theViewOptions to file ".background:background.png"
-        set position of item "Loominate.app" of container window to {170, 240}
-        set position of item "Applications" of container window to {490, 240}
+        set position of item "Loominate.app" of container window to {170, 225}
+        set position of item "Applications" of container window to {490, 225}
+        try
+            set position of item ".background" of container window to {580, 70}
+        end try
+        try
+            set position of item ".fseventsd" of container window to {580, 70}
+        end try
         close
         open
         update without registering applications
