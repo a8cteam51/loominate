@@ -2,6 +2,7 @@
 # Regenerates the app icon and menu bar icon from the sources in Assets/.
 #   Assets/AppIcon-1024.png        full-bleed logomark on transparency (no margins)
 #   Assets/loominate-menubar.svg   monochrome black glyph for the menu bar
+#   Assets/loominate-logo.svg      logomark + wordmark for the README
 # Outputs (committed, so builders do not need ImageMagick):
 #   Assets/AppIcon-composed.png    logomark on a full-bleed tile, 1024x1024 (macOS masks it)
 #   Assets/AppIcon.icns            all sizes, via iconutil
@@ -60,4 +61,9 @@ iconutil -c icns "$ICONSET" -o "$OUT/AppIcon.icns"
 # Menu bar template image: black on transparency, 18 points (18 px and 36 px).
 magick -background none -density 96 "$SVG" -resize 18x18 "$OUT/MenuBarIcon.png"
 magick -background none -density 192 "$SVG" -resize 36x36 "$OUT/MenuBarIcon@2x.png"
-echo "Wrote AppIcon-composed.png, AppIcon.icns, MenuBarIcon.png, MenuBarIcon@2x.png in Assets/"
+# README logo (2x) in light and dark variants, rendered with macOS's own SVG support so the
+# gradient survives; the dark variant is the same SVG with the wordmark fill switched to white.
+swift "$ROOT/Scripts/render-svg.swift" "$ROOT/Assets/loominate-logo.svg" "$OUT/loominate-logo.png" 1764 440
+sed 's/fill="#000000"/fill="#FFFFFF"/g' "$ROOT/Assets/loominate-logo.svg" > "$TMP/logo-dark.svg"
+swift "$ROOT/Scripts/render-svg.swift" "$TMP/logo-dark.svg" "$OUT/loominate-logo-dark.png" 1764 440
+echo "Wrote AppIcon-composed.png, AppIcon.icns, MenuBarIcon.png, MenuBarIcon@2x.png, loominate-logo.png, loominate-logo-dark.png in Assets/"

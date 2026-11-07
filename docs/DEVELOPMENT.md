@@ -104,8 +104,9 @@ The version is `CFBundleShortVersionString` in `Scripts/Info.plist`.
 
 ## Icons
 
-`Assets/AppIcon-1024.png` and `Assets/loominate-menubar.svg` are the sources; `Scripts/make-icons.sh`
-produces `AppIcon.icns` and the menu bar template images (needs ImageMagick). The generated files
+`Assets/AppIcon-1024.png`, `Assets/loominate-menubar.svg` and `Assets/loominate-logo.svg` are the
+sources; `Scripts/make-icons.sh` produces `AppIcon.icns`, the menu bar template images and the
+README logo in light and dark variants (needs ImageMagick; SVGs are rendered by macOS itself). The generated files
 are committed so only someone changing the artwork needs the tool.
 
 ## Known limitations
