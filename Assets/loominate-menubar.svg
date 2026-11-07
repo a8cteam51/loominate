@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="76 76 360 360" role="img" aria-labelledby="title desc">
+  <title id="title">Loominate menu bar icon</title>
+  <desc id="desc">Solid black central Loominate shape with a transparent play cutout and no rays.</desc>
+  <path fill="#000000" fill-rule="evenodd" d="M256 94     C287 94 299 120 315 146     C328 167 345 184 370 200     C397 217 418 230 418 256     C418 282 397 295 370 312     C345 328 328 345 315 366     C299 392 287 418 256 418     C225 418 213 392 197 366     C184 345 167 328 142 312     C115 295 94 282 94 256     C94 230 115 217 142 200     C167 184 184 167 197 146     C213 120 225 94 256 94Z     M231 191     C224 187 216 192 216 201     V311     C216 320 224 325 231 321     L326 266     C334 261 334 251 326 246Z" />
+</svg>

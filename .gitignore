@@ -1,0 +1,9 @@
+# Build output
+.build/
+build/
+# Local secrets (WordPress.com client secret for Scripts/bundle.sh)
+.secrets/
+# macOS
+.DS_Store
+dist/
+PLAN.md
