@@ -163,9 +163,12 @@ struct SettingsView: View {
                             ProgressView { Text("Installing…").font(.caption) }
                         default:
                             HStack(spacing: 10) {
-                                Button("Install and Relaunch") { state.updates.install() }
-                                    .buttonStyle(.borderedProminent)
-                                    .disabled(state.isBusy)
+                                // When blocked, the reason and the reinstall command appear below instead.
+                                if !state.updates.isBlocked {
+                                    Button("Install and Relaunch") { state.updates.install() }
+                                        .buttonStyle(.borderedProminent)
+                                        .disabled(state.isBusy)
+                                }
                                 if state.updates.skippedVersion == update.version {
                                     Button("Stop Skipping") { state.updates.unskip() }
                                 } else {
@@ -176,7 +179,7 @@ struct SettingsView: View {
                                         .buttonStyle(.link)
                                 }
                             }
-                            if state.isBusy {
+                            if state.isBusy && !state.updates.isBlocked {
                                 Text("Finish the recording or upload first.").font(.caption).foregroundStyle(.secondary)
                             }
                         }

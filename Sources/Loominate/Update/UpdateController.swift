@@ -36,6 +36,8 @@ final class UpdateController {
 
     let currentVersion: String
     let currentBuild: Int
+    /// Debug builds under the checkout's `build/` folder can't self-update, so they stay quiet.
+    let isDevelopmentBuild = UpdateInstaller.isDevelopmentBuild
 
     @ObservationIgnored var isAppBusy: @MainActor () -> Bool = { false }
     @ObservationIgnored var automaticChecksEnabled: @MainActor () -> Bool = { true }
@@ -77,10 +79,16 @@ final class UpdateController {
         return latest
     }
 
-    /// Show the panel row and send the notification only for versions the user has not skipped.
+    /// Show the panel row and send the notification only for versions the user has not skipped,
+    /// and never for a development build, which could not install them anyway.
     var shouldOffer: Bool {
-        guard let update = availableUpdate else { return false }
+        guard !isDevelopmentBuild, let update = availableUpdate else { return false }
         return update.version != skippedVersion
+    }
+
+    var isBlocked: Bool {
+        if case .blocked = phase { return true }
+        return false
     }
 
     var installCommand: String { UpdateConfig.installCommand }
@@ -91,6 +99,7 @@ final class UpdateController {
         case .upToDate: return "You're up to date."
         case .available: return ""
         case .failed, .blocked: return ""
+        case .idle where isDevelopmentBuild: return "Development build, so automatic checks are off."
         default:
             guard let lastCheck else { return UpdateConfig.usesFeedOverride ? "Using a custom update feed." : "Not checked yet." }
             return "Last checked \(lastCheck.formatted(.relative(presentation: .named)))."
@@ -106,6 +115,10 @@ final class UpdateController {
         if let notice = defaults.string(forKey: Keys.postInstallNotice) {
             postInstallNotice = notice
             defaults.removeObject(forKey: Keys.postInstallNotice)
+        }
+        guard !isDevelopmentBuild else {
+            Log.note("development build: automatic update checks are off")
+            return
         }
         initialCheck = Task { [weak self] in
             try? await Task.sleep(for: .seconds(UpdateConfig.initialCheckDelay))
@@ -139,13 +152,18 @@ final class UpdateController {
             lastCheck = Date()
             UserDefaults.standard.set(lastCheck, forKey: Keys.lastCheck)
             if payload.isNewer(thanVersion: currentVersion, build: currentBuild) {
-                phase = .available
-                Log.note("update available: \(payload.version) (\(payload.build)); running \(versionLabel)")
+                // Find out now whether this copy can take the update, so the panel and the
+                // notification say so instead of failing the moment Update is clicked.
+                let problem = UpdateInstaller.installabilityProblem()
+                phase = problem.map { .blocked($0) } ?? .available
+                Log.note("update available: \(payload.version) (\(payload.build)); running \(versionLabel)"
+                         + (problem.map { "; this copy can't install it: \($0)" } ?? ""))
                 let notified = UserDefaults.standard.string(forKey: Keys.notifiedVersion)
                 if !userInitiated, shouldOffer, notified != payload.version {
                     UserDefaults.standard.set(payload.version, forKey: Keys.notifiedVersion)
                     Notifier.shared.notify(title: "Loominate \(payload.version) is available",
-                                           body: "Open Loominate's settings to install it.",
+                                           body: problem == nil ? "Open Loominate's settings to install it."
+                                                                : "Open Loominate's settings to see how to get it.",
                                            action: .openUpdates)
                 }
             } else {

@@ -87,6 +87,21 @@ enum UpdateInstaller {
         return Target(bundleURL: bundle, parent: parent)
     }
 
+    /// A checkout's `build/` folder with no feed override: never checks automatically, never installs.
+    static var isDevelopmentBuild: Bool {
+        Bundle.main.bundleURL.standardizedFileURL.path.contains("/build/") && !UpdateConfig.usesFeedOverride
+    }
+
+    /// Why this copy can't replace itself, or nil when it can.
+    static func installabilityProblem() -> String? {
+        do {
+            _ = try preflight()
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
     // MARK: Download
 
     static func makeStagingDirectory() throws -> URL {

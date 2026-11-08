@@ -62,7 +62,11 @@ struct MainPanelView: View {
             case .verifying, .installing:
                 Text("Installing…")
                 Spacer()
-            case .failed, .blocked:
+            case .blocked:
+                Text("Can't update from this location.")
+                Spacer()
+                Button("Details") { state.openSettings() }.buttonStyle(.link)
+            case .failed:
                 Text("The update didn't install.")
                 Spacer()
                 Button("Details") { state.openSettings() }.buttonStyle(.link)

@@ -146,7 +146,11 @@ of our own instead.
   `.secrets/update-signing-key` (gitignored, 32 raw bytes). **Back it up alongside the certificate.**
 - **The check** runs 20 seconds after launch and then daily (`NSBackgroundActivityScheduler`),
   never while recording or uploading. Settings → Updates has Check Now, the notes, Install and
-  Relaunch, and Skip This Version. One notification per new version.
+  Relaunch, and Skip This Version. One notification per new version. When a newer build exists but
+  this copy cannot replace itself (see refusals below), the check says so up front, with the reason
+  and the curl install line, instead of offering an Update button that would fail. A debug build
+  under a checkout's `build/` folder skips automatic checks altogether unless the feed is
+  overridden; Check Now still works there and reports why it will not install.
 - **The install** (`UpdateInstaller`) streams the zip into a private temp folder while hashing it,
   unpacks with `ditto` (which keeps signatures intact), confirms the bundle ID, version and build
   match the manifest, then validates the new bundle against the running app's designated requirement
