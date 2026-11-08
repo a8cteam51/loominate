@@ -95,12 +95,22 @@ enum ContentEnumerator {
         return ShareableSnapshot(content: content, displays: displays, windows: windows, ownApplication: own)
     }
 
-    /// Display captures exclude every window of this app (HUD, preview, countdown, panel).
+    /// Hidden switch for recording Loominate itself (demos, documentation):
+    /// `defaults write com.automattic.loominate recordOwnWindows -bool true`, or `--record --include-self`.
+    /// With it on, the panel, countdown, floating control and Settings all appear in the video.
+    nonisolated(unsafe) static var includeOwnWindowsOverride: Bool?
+    static var includesOwnWindows: Bool {
+        includeOwnWindowsOverride ?? UserDefaults.standard.bool(forKey: "recordOwnWindows")
+    }
+
+    /// Display captures exclude every window of this app (HUD, preview, countdown, panel), unless
+    /// the demo switch above is on.
     static func makeFilter(for source: CaptureSource, in snapshot: ShareableSnapshot) throws -> SCContentFilter {
         switch source {
         case .display(let id):
             guard let display = snapshot.display(id) else { throw ContentError.sourceUnavailable }
-            let excluded = snapshot.ownApplication.map { [$0] } ?? []
+            let excluded = includesOwnWindows ? [] : (snapshot.ownApplication.map { [$0] } ?? [])
+            if includesOwnWindows { Log.note("recording own windows (demo mode)") }
             return SCContentFilter(display: display, excludingApplications: excluded, exceptingWindows: [])
         case .window(let id):
             guard let window = snapshot.window(id) else { throw ContentError.sourceUnavailable }

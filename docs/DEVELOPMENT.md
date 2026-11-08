@@ -116,6 +116,20 @@ Recording commands run under the terminal's permissions, so the terminal app nee
 (and Microphone) access. `--fake-camera` feeds a synthetic image to the bubble so the compositor can
 be tested without camera permission.
 
+### Recording Loominate itself
+
+Display captures normally leave out every window Loominate owns, so a demo of the app can't be
+recorded with the app. A hidden switch turns that off:
+
+```bash
+defaults write com.automattic.loominate recordOwnWindows -bool true    # then quit and reopen the app
+defaults delete com.automattic.loominate recordOwnWindows              # back to normal
+```
+
+With it on, the panel, countdown, floating control, result card and Settings all show up in the
+video, and the camera bubble is not composited for display captures because the on-screen self-view
+is in the recording already. `--record --include-self` does the same for one headless run.
+
 ## Updates
 
 Installed copies update themselves. The design assumes no Developer ID: files the app (or `curl`)

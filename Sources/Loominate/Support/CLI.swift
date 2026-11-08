@@ -13,7 +13,8 @@ enum CLI {
           --seconds N  --display INDEX | --window SUBSTRING  --no-system-audio  --no-mic
           --mic SUBSTRING  --fake-camera  --fps N  --scale 1|2  --quality low|medium|high
           --codec h264|hevc  --bubble-corner NAME  --bubble-size small|medium|large
-          --move-bubble SECONDS:CORNER (drag simulation)  --out PATH
+          --move-bubble SECONDS:CORNER (drag simulation)  --include-self (record Loominate's own windows)
+          --out PATH
       --probe <file>                      print a recording's tracks and sizes
 
     WordPress.com / VideoPress (run through the app bundle: Loominate.app/Contents/MacOS/Loominate)
@@ -170,6 +171,7 @@ enum HeadlessRecording {
             case "--no-mic": microphone = false
             case "--mic": micQuery = value()
             case "--fake-camera": fakeCamera = true
+            case "--include-self": ContentEnumerator.includeOwnWindowsOverride = true
             case "--fps": prefs.frameRate = FrameRate(rawValue: Int(value()) ?? 30) ?? .fps30
             case "--scale": prefs.scale = CaptureScale(rawValue: Int(value()) ?? 1) ?? .one
             case "--quality": prefs.quality = QualityPreset(rawValue: value()) ?? .medium

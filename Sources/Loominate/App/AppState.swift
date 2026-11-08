@@ -332,7 +332,8 @@ final class AppState {
                                        systemAudio: prefs.systemAudioEnabled,
                                        microphone: prefs.microphoneEnabled && microphonePermission == .granted,
                                        microphoneDeviceID: micID,
-                                       cameraSource: prefs.cameraEnabled ? camera : nil,
+                                       // Demo mode records the on-screen self-view itself, so don't draw a second bubble.
+                                       cameraSource: prefs.cameraEnabled && !(ContentEnumerator.includesOwnWindows && !source.isWindow) ? camera : nil,
                                        bubbleInsets: source.isWindow ? .zero : BubbleInsets.forDisplay(targetScreen))
         let session = RecordingSession()
         session.onStreamStopped = { [weak self] error in
