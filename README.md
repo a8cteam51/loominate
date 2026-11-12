@@ -1,3 +1,6 @@
+> [!WARNING]
+> **Loominate is deprecated.** Please use **[PressShot](https://github.com/dhanson-wp/pressshot)** instead. It covers everything Loominate did (and more!), and it’s where I’m contributing from now on.
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="Assets/loominate-logo-dark.png">
